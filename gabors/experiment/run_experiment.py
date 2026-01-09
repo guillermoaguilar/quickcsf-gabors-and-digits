@@ -7,7 +7,8 @@ Uses HRL on python 3
 
 @authors: G. Aguilar, Jan 2026
 """
-
+import random
+from math import pi
 import pygame
 import pandas as pd
 from socket import gethostname
@@ -22,6 +23,12 @@ from qCSF import qCSF
 
 NTRIALS = 10
 SUFFIX = 'GABORS'
+
+# Possible orientations
+orientations = [0, 90]
+
+# Possible phases
+phases = [0, pi/4, pi/2, 3*pi/4]
 
 # Initialize quickCSF object
 qcsf = qCSF()
@@ -78,9 +85,9 @@ def run_trials(ihrl):
         trial['contrast'] = contrast
         trial['sf'] = sf
         
-        # TODO: Orientation and Phase should be randomized
-        trial['phase'] = 0
-        trial['orientation']= 0
+        # Orientation and Phase should be randomized
+        trial['phase'] = random.choice(phases)
+        trial['orientation']= random.choice(orientations)
         
 
         # run trial
