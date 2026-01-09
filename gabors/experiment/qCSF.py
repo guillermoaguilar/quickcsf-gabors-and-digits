@@ -78,7 +78,7 @@ class qCSF():
         # set default parameter vectors
         if frequency_vector is None:
             frequency_vector = np.logspace(np.log10(.2),
-                                           np.log10(36),
+                                           np.log10(30),
                                            25, endpoint=True)
 
         if contrast_vector is None:

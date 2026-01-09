@@ -3,7 +3,7 @@ import stimupy
 
 # Defaults
 IM_SIZE = 4   # deg. visual angle of the bounding square
-PPD = 72      # pixels per degree. Default on our ViewPixx setup
+PPD = 61      # pixels per degree. Default on our ViewPixx setup
 
 INTENSITY_BACKGROUND = 0.5
 

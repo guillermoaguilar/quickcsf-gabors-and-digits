@@ -64,7 +64,7 @@ else:
         "lut": None,
         "fs": True,
         "wdth": 1920,
-        "hght": 1200,
+        "hght": 1080,
         "bg": 0.5,
     }
 

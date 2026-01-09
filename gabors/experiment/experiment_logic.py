@@ -26,7 +26,7 @@ def run_trial(
     window_center = (ihrl.height // 2, ihrl.width // 2)  # Center of the drawing window
 
     # Fixation cross
-    display_fixation_cross(ihrl)
+    display_fixation_cross(ihrl, intensity=1.0)
 
     # Create textures before showing
     gabor1 = stimuli.gabor(sf,
@@ -43,17 +43,18 @@ def run_trial(
     pos = (window_center[1] - (gabor_texture.wdth // 2),
            window_center[0] - (gabor_texture.hght // 2))
     
+    ### time of fixation
     time.sleep(0.5)
     
-    ### 1st interval
-    # draw and flip first interval
+    
+    # draw and flip
     gabor_texture.draw(pos=pos, sz=(gabor_texture.wdth, gabor_texture.hght))
     ihrl.graphics.flip(clr=True)  # flips the frame buffer to show everything
     #ihrl.sounds[0].play(loops=0, maxtime=int(0.5*1000)) # stim time in ms
-    time.sleep(0.5) 
+    time.sleep(0.3) 
         
     ### wait for response
-    display_fixation_cross(ihrl, intensity=0)
+    ihrl.graphics.flip(clr=True) 
     btn, t1 = ihrl.inputs.readButton(btns=["Up", "Down", "Escape", "Space"])
     
     if btn=="Up":
@@ -65,6 +66,14 @@ def run_trial(
     # Raise SystemExit Exception
     if (btn == "Escape") or (btn == "Space"):
         sys.exit("Participant terminated experiment.")
+
+    # after response, sleep for 1 second
+    display_fixation_cross(ihrl, intensity=0.0)
+    time.sleep(0.25)
+    
+    # limpia
+    ihrl.graphics.flip(clr=True) 
+    time.sleep(0.25)
 
     # end trial
     return {"response-btn": btn, "response": response, "resp.time": t1}

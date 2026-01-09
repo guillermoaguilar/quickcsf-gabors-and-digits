@@ -8,8 +8,8 @@ LANG = "en"
 def display_text(
     ihrl,
     text,
-    ppd=32,
-    fontsize=36,
+    ppd=61,
+    fontsize=40,
     intensity_text=0.0,
     intensity_background=None,
 ):
