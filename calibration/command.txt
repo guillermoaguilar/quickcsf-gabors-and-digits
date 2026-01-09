@@ -1,0 +1,6 @@
+# to test
+hrl-util lut measure -p colorcal -s 10 -n 1 -r -gr gpu -wd 1920 -hg 1080 -sc 0
+
+
+# to measure
+hrl-util lut measure -p colorcal -s 64 -n 1 -r -gr gpu -wd 1920 -hg 1080 -sc 0
