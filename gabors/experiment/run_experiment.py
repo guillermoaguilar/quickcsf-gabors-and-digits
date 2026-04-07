@@ -21,7 +21,7 @@ import experiment_logic
 
 from qCSF import qCSF
 
-NTRIALS = 10
+NTRIALS = 100
 SUFFIX = 'GABORS'
 
 # Possible orientations
@@ -61,7 +61,7 @@ else:
         "graphics": "gpu",
         "inputs": "keyboard",
         "scrn": 0,
-        "lut": None,
+        "lut": 'lut.csv',
         "fs": True,
         "wdth": 1920,
         "hght": 1080,

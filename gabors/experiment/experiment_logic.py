@@ -6,9 +6,9 @@ import stimuli
 import text_displays
 
 
-def display_fixation_cross(ihrl, intensity=0):
+def display_fixation_cross(ihrl, intensity=0, size=5):
     ihrl.graphics.flip(clr=True)
-    fix = ihrl.graphics.newTexture(np.ones((5, 5)) * intensity)
+    fix = ihrl.graphics.newTexture(np.ones((size, size)) * intensity)
     fix.draw((ihrl.width // 2, ihrl.height // 2))
     ihrl.graphics.flip()
     return
@@ -25,8 +25,8 @@ def run_trial(
     """Function that runs sequence of events during one trial"""
     window_center = (ihrl.height // 2, ihrl.width // 2)  # Center of the drawing window
 
-    # Fixation cross
-    display_fixation_cross(ihrl, intensity=1.0)
+    # Fixation cross - blanca
+    display_fixation_cross(ihrl, intensity=1.0, size=10)
 
     # Create textures before showing
     gabor1 = stimuli.gabor(sf,
@@ -52,9 +52,15 @@ def run_trial(
     ihrl.graphics.flip(clr=True)  # flips the frame buffer to show everything
     #ihrl.sounds[0].play(loops=0, maxtime=int(0.5*1000)) # stim time in ms
     time.sleep(0.3) 
-        
+    
+    # limpia
+    ihrl.graphics.flip(clr=True)
+    time.sleep(0.1) 
+    
+    ## fixation negra, espera respuesta
+    display_fixation_cross(ihrl, intensity=0.0, size=10)
+    
     ### wait for response
-    ihrl.graphics.flip(clr=True) 
     btn, t1 = ihrl.inputs.readButton(btns=["Up", "Down", "Escape", "Space"])
     
     if btn=="Up":
@@ -68,12 +74,10 @@ def run_trial(
         sys.exit("Participant terminated experiment.")
 
     # after response, sleep for 1 second
-    display_fixation_cross(ihrl, intensity=0.0)
-    time.sleep(0.25)
-    
-    # limpia
     ihrl.graphics.flip(clr=True) 
-    time.sleep(0.25)
+    time.sleep(0.5)
+    
+
 
     # end trial
     return {"response-btn": btn, "response": response, "resp.time": t1}
@@ -88,13 +92,13 @@ def display_instructions(ihrl):
         hrl-interface object to use for display
     """
     lines = [
-        "Contrast detection task",
-        "Answer if you saw the stimulus or not",
-        "Press UP for YES, I saw it",
-        "or",
-        "Press DOWN for NO, I did not see it",
+        "Medición de sensibilidad al contraste",
+        "Responda si vio o no el estímulo",
+        "Presione ARRIBA si lo vio",
+        "o",
+        "Presione ABAJO si no lo vio",
         "",
-        "Press MIDDLE button to start",
+        "Presiona ARRIBA para empezar",
     ]
 
     text_displays.display_text(
