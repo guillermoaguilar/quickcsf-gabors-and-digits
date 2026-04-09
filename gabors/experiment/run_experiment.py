@@ -11,6 +11,7 @@ import random
 from math import pi
 import pygame
 import pandas as pd
+import numpy as np
 from socket import gethostname
 from hrl import HRL
 
@@ -18,6 +19,7 @@ from hrl import HRL
 import data_management
 import text_displays
 import experiment_logic
+from stimuli import PPD
 
 from qCSF import qCSF
 
@@ -30,9 +32,19 @@ orientations = [0, 90]
 # Possible phases
 phases = [0, pi/4, pi/2, 3*pi/4]
 
-# Initialize quickCSF object
-qcsf = qCSF()
+# vector of possible frequencies 
+frequency_vector = np.logspace(np.log10(.2),
+                               np.log10(int(PPD/2)),
+                               25, endpoint=True)
+      
+# Initialize quickCSF object                                         
+qcsf = qCSF(frequency_vector=frequency_vector)
 
+# psychometric function parameters
+# fixing upper and lower asymptotes to 4% 
+qcsf.lapserate = 0.04
+qcsf.guessrate = 0.04
+# lower asymptote is zero because this is a Yes/No task                      
 
 if "vlab" in gethostname():
     SETUP = {

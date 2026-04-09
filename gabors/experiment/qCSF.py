@@ -78,7 +78,7 @@ class qCSF():
         # set default parameter vectors
         if frequency_vector is None:
             frequency_vector = np.logspace(np.log10(.2),
-                                           np.log10(30),
+                                           np.log10(36),
                                            25, endpoint=True)
 
         if contrast_vector is None:
@@ -386,11 +386,11 @@ class qCSF():
         """
         
         ### save history
-        #with open(filename + '_history.csv', 'w') as csv_file:  
-        #    writer = csv.writer(csv_file)
-        #    writer.writerow(['contrast', 'sf', 'response'])
-        #    for c, sf, r in self.history:
-        #       writer.writerow([c, sf, r])
+        with open(filename + '_history.csv', 'w') as csv_file:  
+            writer = csv.writer(csv_file)
+            writer.writerow(['contrast', 'sf', 'response'])
+            for c, sf, r in self.history:
+               writer.writerow([c, sf, r])
         
         ### gets parameter estimates
         estimate = self.get_estimates()

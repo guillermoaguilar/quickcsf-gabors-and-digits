@@ -3,7 +3,7 @@ import stimupy
 
 # Defaults
 IM_SIZE = 4   # deg. visual angle of the bounding square
-PPD = 61      # pixels per degree. Default on our ViewPixx setup
+PPD = 61      # pixels per degree.
 
 INTENSITY_BACKGROUND = 0.5
 
@@ -12,7 +12,7 @@ INTENSITY_BACKGROUND = 0.5
 def gabor(
     sf,
     contrast,
-    sigma=0.5, 
+    sigma=0.75, 
     orientation=0, # in degrees
     phase=0, # in degrees
     intensity_background=INTENSITY_BACKGROUND,
