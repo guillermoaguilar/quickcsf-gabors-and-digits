@@ -3,7 +3,7 @@ import stimupy
 
 # Defaults
 IM_SIZE = 4   # deg. visual angle of the bounding square
-PPD = 61      # pixels per degree.
+PPD = 51      # pixels per degree.
 
 INTENSITY_BACKGROUND = 0.5
 

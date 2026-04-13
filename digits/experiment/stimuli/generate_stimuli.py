@@ -6,47 +6,69 @@ Generate bandpass-filtered digit stimuli for the qCSF experiment,
 replicating Zheng et al. (2018) "Measuring the Contrast Sensitivity
 Function Using the qCSF Method With 10 Digits."
 
-FILTER SPECIFICATION (from paper)
-----------------------------------
+APPROACH
+--------
+All output images have the same pixel dimensions as the input.  The six
+spatial-frequency conditions are produced by varying the centre frequency
+of the bandpass filter, not by resizing.  The mapping is:
+
+    f0_cpo = sf_cpd × display_size_deg
+
+where display_size_deg is the visual angle subtended by the image on your
+monitor (a fixed property of your setup, set with --display-size).
+
+Example: display_size=3°, sf_cpd=2 → f0_cpo = 6 cpo.
+
+FILTER SPECIFICATION
+--------------------
 - Type      : Raised cosine in log-frequency space, radially isotropic
-- Centre    : f0 = 3 cycles per object (cpo)
+- Centre    : f0_cpo = sf_cpd × display_size_deg  (per SF condition)
 - Bandwidth : 1 octave full-width at half-height (FWHH)
-- Passband  : f0 / 2^(bw/2)  to  f0 * 2^(bw/2)  =  ~2.12 – 4.24 cpo
-              (support extends ±bw octaves from f0, i.e. 1.5 – 6 cpo)
 
-FREQUENCY / VISUAL ANGLE CORRESPONDENCE
------------------------------------------
-The paper states (Zheng et al. 2019 companion paper, same stimuli):
-  Size (°)  :  12     6     3    1.5   0.75   0.38
-  SF (cpd)  :  0.5    1     2     4     8     15.8
+    H(f) = ½ · (1 + cos(π · log₂(f/f0) / bw))   if |log₂(f/f0)| ≤ bw
+         = 0                                        otherwise
 
-This gives SF_cpd = f0_eff / size_deg where f0_eff ≈ 6 cpo.
-The factor-of-2 discrepancy relative to the paper's stated "3 cpo" most
-likely reflects a convention in which "object" = half the image width
-(the digit occupies the central 50% of the stimulus aperture, with
-grey padding on each side – common practice to reduce edge effects).
+SF CONDITIONS (Zheng et al. 2018)
+----------------------------------
+  Target SF (cpd)  :  0.5    1     2     4     8    15.8
 
-In this code the filter is always defined in *cycles per image width*.
-Set f0_cpo=3 if your images already contain the digit padded to 2×
-its own size; set f0_cpo=6 if the digit fills the full image width.
-The default is f0_cpo=3 to match the paper's stated value.
+  The required f0_cpo depends on your display size.  For a 3° image:
+    f0_cpo           :  1.5    3     6    12    24    47.4
+
+  Important: the filter is only meaningful if f0_cpo < N/2 (Nyquist).
+  A warning is printed when f0_cpo approaches or exceeds this limit.
+
+RESIZING
+--------
+If your source images are larger than what you will display (e.g. 512 px
+source displayed at a size that corresponds to 256 px on screen), always
+filter FIRST at the full source resolution, then resize.  Never resize
+before filtering -- that lowers Nyquist and may truncate high-SF filters.
+
+Use --output-px N to Lanczos-resize every filtered image to N x N pixels
+after filtering.  The filter is always computed for the source image at
+--display-size degrees, so the frequency content is correct regardless of
+whether you resize afterward.
+
+Example (512 px source = 8 deg, displayed at 4 deg -> 256 px on screen):
+  python generate_stimuli.py digits/ stimuli/ --display-size 4 --output-px 256
 
 USAGE
 -----
   python generate_stimuli.py <input_dir> <output_dir> [options]
 
   Options:
-    --f0        Filter centre frequency in cpo          [default: 3.0]
-    --bw        Filter bandwidth in octaves (FWHH)      [default: 1.0]
-    --ppd       Display pixels per degree               [default: 60.0]
-    --contrast  RMS contrast of output images (0–1)     [default: 0.20]
-    --mean-lum  Background mean luminance (0–255)       [default: 128.0]
-    --no-resize Skip per-condition resized outputs
-    --plot      Save diagnostic plots
+    --display-size  Visual angle of the image on screen (degrees) [default: 3.0]
+    --output-px     Resize filtered images to this size in pixels  [optional]
+    --bw            Filter bandwidth in octaves (FWHH)             [default: 1.0]
+    --contrast      RMS contrast of output images (0-1)            [default: 0.20]
+    --mean-lum      Background mean luminance (0-255)              [default: 128.0]
+    --plot          Save a strip figure for each digit
+    --plot-filters  Save an overlay of all six filter profiles and exit
 
 DEPENDENCIES
 ------------
-  numpy, Pillow, matplotlib  (all standard; install via pip)
+  numpy, Pillow, matplotlib
 """
 
 import argparse
@@ -58,74 +80,61 @@ import numpy as np
 from PIL import Image
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Constants: SF conditions from Zheng et al. (2018)
-# ─────────────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# SF conditions from Zheng et al. (2018) — target cpd values are fixed;
+# f0_cpo is computed at runtime from display_size_deg.
+# ---------------------------------------------------------------------------
 
 SF_CONDITIONS = [
-    # (label,          size_deg,  sf_cpd)
-    ("12deg_0.50cpd",  12.00,     0.50),
-    ("06deg_1.00cpd",   6.00,     1.00),
-    ("03deg_2.00cpd",   3.00,     2.00),
-    ("1.5deg_4.00cpd",  1.50,     4.00),
-    ("0.75deg_8.00cpd", 0.75,     8.00),
-    ("0.38deg_15.8cpd", 0.38,    15.80),
+    # (label,       sf_cpd)
+    ("0.50cpd",      0.50),
+    ("1.00cpd",      1.00),
+    ("2.00cpd",      2.00),
+    ("4.00cpd",      4.00),
+    ("8.00cpd",      8.00),
+    ("15.80cpd",    15.80),
 ]
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+def f0_for_condition(sf_cpd: float, display_size_deg: float) -> float:
+    """Return the filter centre frequency (cpo) for a target sf_cpd.
+
+    f0_cpo = sf_cpd × display_size_deg
+
+    Rationale: if the image subtends display_size_deg degrees and the filter
+    peak should fall at sf_cpd cycles per degree, then the peak must be at
+    sf_cpd × display_size_deg cycles across the full image width.
+    """
+    return sf_cpd * display_size_deg
+
+
+# ---------------------------------------------------------------------------
 # 1. Filter construction
-# ─────────────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
 
 def make_raised_cosine_filter(N: int,
-                               f0_cpo: float = 3.0,
+                               f0_cpo: float,
                                bw_octaves: float = 1.0) -> np.ndarray:
-    """
-    Build a 2-D radially isotropic raised cosine bandpass filter.
-
-    Mathematical definition
-    ~~~~~~~~~~~~~~~~~~~~~~~
-    Let f  = radial spatial frequency in cycles per image width (cpo),
-        f0 = centre frequency,
-        B  = full bandwidth at half-height (octaves).
-
-    The raised cosine in log-frequency space is:
-
-        H(f) = ½ · (1 + cos(π · log₂(f/f0) / B))   if |log₂(f/f0)| ≤ B
-             = 0                                      otherwise
-
-    Properties
-    ~~~~~~~~~~
-    • H(f0)       = 1          (unit gain at centre)
-    • H(f0 · 2^½B) = 0.5      (FWHH at ±B/2 octaves → full BW = B octaves) ✓
-    • H(f0 · 2^B) = 0          (filter reaches zero at ±B octaves)
-    • The filter is radially symmetric (depends only on |f|, not direction)
-    • DC component (f=0) is always zero → output has zero mean
+    """Build a 2-D radially isotropic raised cosine bandpass filter.
 
     Parameters
     ----------
-    N         : Image side-length in pixels (square images assumed).
+    N         : Side-length of the (square) padded image in pixels.
     f0_cpo    : Centre frequency in cycles per image width.
     bw_octaves: Full bandwidth at half-height (FWHH) in octaves.
 
     Returns
     -------
-    H : ndarray, shape (N, N), float64
-        Filter in *FFT order* (not fftshifted), ready to multiply with
-        the output of np.fft.fft2().
+    H : ndarray shape (N, N), float64, in FFT order (not fftshifted).
     """
-    # Frequencies in cycles per image width (cpo)
-    # np.fft.fftfreq gives cycles per pixel → multiply by N → cpo
-    fx = np.fft.fftfreq(N) * N   # shape (N,), FFT order
+    fx = np.fft.fftfreq(N) * N          # cycles per image width, FFT order
     fy = np.fft.fftfreq(N) * N
-    FX, FY = np.meshgrid(fx, fy, indexing='xy')  # (N, N)
-    R = np.sqrt(FX ** 2 + FY ** 2)               # radial freq, cpo
+    FX, FY = np.meshgrid(fx, fy, indexing='xy')
+    R = np.sqrt(FX ** 2 + FY ** 2)      # radial frequency (cpo)
 
     H = np.zeros_like(R)
-    nonzero = R > 0                               # exclude DC (f=0)
+    nonzero = R > 0
     log_r = np.log2(R[nonzero] / f0_cpo)
-
-    # Raised cosine: non-zero where |log2(f/f0)| ≤ bw_octaves
     within = np.abs(log_r) <= bw_octaves
     H[nonzero] = np.where(
         within,
@@ -135,170 +144,128 @@ def make_raised_cosine_filter(N: int,
     return H
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
 # 2. Applying the filter
-# ─────────────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
 
 def next_power_of_two(n: int) -> int:
     return int(2 ** np.ceil(np.log2(max(n, 1))))
 
 
 def apply_bandpass_filter(img_gray: np.ndarray,
-                           f0_cpo: float = 3.0,
+                           f0_cpo: float,
                            bw_octaves: float = 1.0) -> np.ndarray:
-    """
-    Apply a raised cosine bandpass filter to a grayscale image.
+    """Apply a raised cosine bandpass filter to a grayscale image.
 
-    The image is zero-padded to the next power of two (for FFT efficiency
-    and to reduce circular wrap-around artefacts), filtered in the Fourier
-    domain, and then cropped back to its original size.
+    The image is reflect-padded to the next power of two before FFT to
+    reduce circular wrap-around artefacts, then cropped back.
 
     Parameters
     ----------
-    img_gray  : 2-D array (H × W), any numeric dtype.
-                Non-square images are handled gracefully.
+    img_gray  : 2-D array (H x W), any numeric dtype.
     f0_cpo    : Filter centre frequency in cycles per image width.
     bw_octaves: Filter FWHH bandwidth in octaves.
 
     Returns
     -------
-    filtered : 2-D float64 array, same shape as img_gray.
-               Zero-mean (DC is removed by the bandpass filter).
+    filtered : 2-D float64 array, same shape as img_gray, zero mean.
     """
     img = img_gray.astype(np.float64)
     H, W = img.shape
     N = next_power_of_two(max(H, W))
 
-    # Reflect-pad to N×N to reduce edge discontinuities
-    pad_h = N - H
-    pad_w = N - W
-    img_padded = np.pad(img, ((0, pad_h), (0, pad_w)), mode='reflect')
-
-    # Build filter at padded size
+    img_padded = np.pad(img, ((0, N - H), (0, N - W)), mode='reflect')
     filt = make_raised_cosine_filter(N, f0_cpo, bw_octaves)
+    filtered_padded = np.real(np.fft.ifft2(np.fft.fft2(img_padded) * filt))
 
-    # Forward FFT → multiply → inverse FFT
-    F = np.fft.fft2(img_padded)
-    filtered_padded = np.real(np.fft.ifft2(F * filt))
-
-    # Crop back to original size
     return filtered_padded[:H, :W]
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
 # 3. Normalisation
-# ─────────────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
 
 def to_display_image(filtered: np.ndarray,
                      mean_lum: float = 128.0,
                      rms_contrast: float = 0.20) -> np.ndarray:
-    """
-    Map a zero-mean filtered image to an 8-bit display image.
+    """Map a zero-mean filtered image to an 8-bit display image.
 
-    The RMS contrast is set relative to mean_lum:
         contrast = std(luminance) / mean_lum
 
     Output is clipped to [0, 255] and cast to uint8.
-
-    Parameters
-    ----------
-    filtered     : Zero-mean float array from apply_bandpass_filter().
-    mean_lum     : Mean/background luminance on the 0–255 scale.
-    rms_contrast : Desired RMS contrast (0–1).
     """
     rms = filtered.std()
     if rms < 1e-12:
         return np.full(filtered.shape, mean_lum, dtype=np.uint8)
-    # Scale so that std(output) = rms_contrast * mean_lum
     scaled = filtered * (rms_contrast * mean_lum / rms)
     return np.clip(mean_lum + scaled, 0, 255).astype(np.uint8)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 4. Resizing for each spatial-frequency condition
-# ─────────────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# 4. Diagnostic plots
+# ---------------------------------------------------------------------------
 
-def resize_image(img: np.ndarray, target_px: int) -> np.ndarray:
-    """Resize a square uint8 image to target_px × target_px using Lanczos."""
-    pil_img = Image.fromarray(img)
-    resized = pil_img.resize((target_px, target_px), Image.LANCZOS)
-    return np.array(resized)
+def plot_all_filters(display_size_deg: float,
+                     bw_octaves: float = 1.0,
+                     N: int = 512,
+                     save_path: str = "filter_profiles.png") -> None:
+    """Save a two-panel figure showing all six filter profiles.
 
-
-def size_deg_to_pixels(size_deg: float, pixels_per_degree: float) -> int:
-    """Convert visual angle to pixel count."""
-    return max(4, round(size_deg * pixels_per_degree))
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 5. Diagnostic plots
-# ─────────────────────────────────────────────────────────────────────────────
-
-def plot_filter_profile(f0_cpo: float = 3.0,
-                         bw_octaves: float = 1.0,
-                         N: int = 512,
-                         save_path: str = "filter_profile.png") -> None:
+    Left  : 1-D cross-sections of all filters overlaid.
+    Right : 2-D heat-map of the highest-frequency filter (hardest case).
     """
-    Save a two-panel figure:
-      Left  – 1-D cross-section of the filter with FWHH annotation.
-      Right – 2-D heat-map of the filter (fftshifted).
-    """
-    H = make_raised_cosine_filter(N, f0_cpo, bw_octaves)
-    H_shifted = np.fft.fftshift(H)
-    fx = np.fft.fftshift(np.fft.fftfreq(N) * N)
-
     fig, axes = plt.subplots(1, 2, figsize=(13, 5))
+    colours = plt.cm.viridis(np.linspace(0.1, 0.9, len(SF_CONDITIONS)))
 
-    # ── Left panel: 1-D profile ──────────────────────────────────────────────
     ax = axes[0]
-    profile = H_shifted[N // 2, :]          # horizontal cross-section
+    fx_ax = np.fft.fftshift(np.fft.fftfreq(N) * N)
+    cx = N // 2
 
-    ax.plot(fx, profile, 'steelblue', lw=2.5, label='H(f)')
-    ax.axhline(0.5, color='grey', ls='--', lw=1.2, label='Half-height (0.5)')
-    ax.axvline( f0_cpo, color='tomato', ls=':', lw=1.5, label=f'f₀ = {f0_cpo} cpo')
-    ax.axvline(-f0_cpo, color='tomato', ls=':', lw=1.5)
+    for (label, sf_cpd), col in zip(SF_CONDITIONS, colours):
+        f0 = f0_for_condition(sf_cpd, display_size_deg)
+        H = make_raised_cosine_filter(N, f0, bw_octaves)
+        profile = np.fft.fftshift(H)[cx, :]
+        ax.plot(fx_ax, profile, color=col, lw=2,
+                label=f'{sf_cpd} cpd  (f0={f0:.1f} cpo)')
 
-    # Mark FWHH edges
-    fwhh_lo = f0_cpo * 2 ** (-bw_octaves / 2)
-    fwhh_hi = f0_cpo * 2 ** ( bw_octaves / 2)
-    ax.axvline( fwhh_hi, color='seagreen', ls='-.', lw=1.2,
-                label=f'FWHH edges ({fwhh_lo:.2f} / {fwhh_hi:.2f} cpo)')
-    ax.axvline(-fwhh_hi, color='seagreen', ls='-.', lw=1.2)
-    ax.axvline( fwhh_lo, color='seagreen', ls='-.', lw=1.2)
-    ax.axvline(-fwhh_lo, color='seagreen', ls='-.', lw=1.2)
-
-    ax.set_xlabel('Spatial frequency (cycles per object)', fontsize=12)
-    ax.set_ylabel('Filter gain', fontsize=12)
+    ax.axhline(0.5, color='grey', ls='--', lw=1, alpha=0.6, label='Half-height')
+    ax.set_xlabel('Spatial frequency (cycles per image width)', fontsize=11)
+    ax.set_ylabel('Filter gain', fontsize=11)
     ax.set_title(
-        f'Raised cosine filter\n'
-        f'f₀ = {f0_cpo} cpo,  FWHH = {bw_octaves} octave',
-        fontsize=12,
+        f'All SF conditions — display size = {display_size_deg} deg, '
+        f'BW = {bw_octaves} oct',
+        fontsize=11,
     )
-    ax.legend(fontsize=9)
-    ax.set_xlim(-10, 10)
-    ax.set_ylim(-0.05, 1.10)
+    ax.legend(fontsize=8, loc='upper right')
+    f0_max = f0_for_condition(SF_CONDITIONS[-1][1], display_size_deg)
+    x_lim  = min(f0_max * 2.5, N / 2)
+    ax.set_xlim(-x_lim, x_lim)
+    ax.set_ylim(-0.05, 1.15)
     ax.grid(True, alpha=0.3)
 
-    # ── Right panel: 2-D heat-map ────────────────────────────────────────────
+    # 2-D map of the highest-frequency filter
     ax2 = axes[1]
-    lim = 8
-    ext = [-lim, lim, -lim, lim]
-    # Crop to ±lim cpo for display
-    ci = N // 2
-    half = round(lim / (N / 2) * (N // 2))
-    crop = H_shifted[ci - half: ci + half, ci - half: ci + half]
-    im = ax2.imshow(crop, cmap='inferno', origin='lower', extent=ext,
-                    vmin=0, vmax=1)
+    H_hi  = np.fft.fftshift(make_raised_cosine_filter(N, f0_max, bw_octaves))
+    lim   = min(f0_max * 2.5, N / 2)
+    half  = round(lim / (N / 2) * cx)
+    crop  = H_hi[cx - half: cx + half, cx - half: cx + half]
+    im    = ax2.imshow(crop, cmap='inferno', origin='lower',
+                       extent=[-lim, lim, -lim, lim], vmin=0, vmax=1)
     plt.colorbar(im, ax=ax2, label='Filter gain')
-    ax2.set_title('2-D filter (fftshifted, zoomed ±8 cpo)', fontsize=12)
-    ax2.set_xlabel('fx (cpo)', fontsize=12)
-    ax2.set_ylabel('fy (cpo)', fontsize=12)
-    # Draw circles at f0 and FWHH edges
+    ax2.set_title(
+        f'2-D filter for {SF_CONDITIONS[-1][1]} cpd (f0={f0_max:.1f} cpo)',
+        fontsize=11,
+    )
+    ax2.set_xlabel('fx (cpo)'); ax2.set_ylabel('fy (cpo)')
     theta = np.linspace(0, 2 * np.pi, 300)
-    for r, col, ls in [(f0_cpo, 'tomato', '-'), (fwhh_lo, 'seagreen', '--'),
-                        (fwhh_hi, 'seagreen', '--')]:
-        ax2.plot(r * np.cos(theta), r * np.sin(theta), color=col,
-                 ls=ls, lw=1.5)
+    for r, col, ls in [
+        (f0_max,                         'white', '-'),
+        (f0_max * 2**(-bw_octaves / 2),  'lime',  '--'),
+        (f0_max * 2**( bw_octaves / 2),  'lime',  '--'),
+    ]:
+        if r <= lim:
+            ax2.plot(r * np.cos(theta), r * np.sin(theta),
+                     color=col, ls=ls, lw=1.5)
 
     plt.tight_layout()
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
@@ -306,189 +273,205 @@ def plot_filter_profile(f0_cpo: float = 3.0,
     print(f"  Saved: {save_path}")
 
 
-def plot_filtered_examples(original: np.ndarray,
-                            filtered_display: np.ndarray,
-                            digit_name: str,
-                            save_path: str,
-                            sf_conditions=None,
-                            ppd: float = 60.0) -> None:
-    """
-    Save a figure showing: original | filtered (native) | per-SF-condition.
-    """
-    n_cond = len(SF_CONDITIONS)
-    fig, axes = plt.subplots(1, 2 + n_cond, figsize=(3 * (2 + n_cond), 3.5))
+def _save_strip(original: np.ndarray,
+                displays: list,
+                digit_name: str,
+                save_path: str) -> None:
+    """Save a horizontal strip: original + one panel per SF condition."""
+    n = 1 + len(displays)
+    fig, axes = plt.subplots(1, n, figsize=(2.5 * n, 3))
 
     def show(ax, img, title):
         ax.imshow(img, cmap='gray', vmin=0, vmax=255)
         ax.set_title(title, fontsize=8)
         ax.axis('off')
 
-    show(axes[0], original, f'Original\n({original.shape[0]}px)')
-    show(axes[1], filtered_display, f'Filtered\n(native res.)')
+    show(axes[0], original.astype(np.uint8),
+         f'Original\n({original.shape[1]}x{original.shape[0]}px)')
+    for i, ((label, sf_cpd), disp) in enumerate(zip(SF_CONDITIONS, displays)):
+        show(axes[i + 1], disp, f'{sf_cpd} cpd')
 
-    for i, (label, size_deg, sf_cpd) in enumerate(SF_CONDITIONS):
-        tpx = size_deg_to_pixels(size_deg, ppd)
-        resized = resize_image(filtered_display, tpx)
-        # Display at a fixed canvas size for visual comparison
-        canvas = np.full((128, 128), 128, dtype=np.uint8)
-        # Centre-paste
-        oh = (128 - resized.shape[0]) // 2
-        ow = (128 - resized.shape[1]) // 2
-        oh = max(0, oh); ow = max(0, ow)
-        rh = min(resized.shape[0], 128)
-        rw = min(resized.shape[1], 128)
-        canvas[oh:oh+rh, ow:ow+rw] = resized[:rh, :rw]
-        show(axes[2 + i], canvas,
-             f'{size_deg}°\n{sf_cpd} cpd\n({tpx}px)')
-
-    fig.suptitle(f'Digit "{digit_name}" – all SF conditions', fontsize=11)
+    fig.suptitle(f'Digit "{digit_name}"', fontsize=10)
     plt.tight_layout()
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
     plt.close()
     print(f"  Saved: {save_path}")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 6. Main pipeline
-# ─────────────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# 5. Main pipeline
+# ---------------------------------------------------------------------------
 
 def process_digits(input_dir: str,
                    output_dir: str,
-                   f0_cpo: float = 3.0,
+                   display_size_deg: float = 3.0,
                    bw_octaves: float = 1.0,
-                   pixels_per_degree: float = 60.0,
                    rms_contrast: float = 0.20,
                    mean_lum: float = 128.0,
-                   save_resized: bool = True,
+                   output_px: int = None,
                    save_plots: bool = False) -> None:
-    """
-    Filter all digit images and save outputs.
+    """Filter all digit images across all six SF conditions and save outputs.
 
-    Steps (per digit image)
-    -----------------------
-    1. Load as grayscale.
-    2. Apply raised cosine bandpass filter in the Fourier domain.
-    3. Normalise to the specified RMS contrast relative to mean_lum.
-    4. Save the native-resolution filtered image.
-    5. (Optional) Resize to each SF condition and save.
-    6. (Optional) Save diagnostic figure.
+    For each digit image and each SF condition:
+      1. Compute f0_cpo = sf_cpd x display_size_deg.
+      2. Warn if f0_cpo is close to the Nyquist limit of the image.
+      3. Apply the raised cosine bandpass filter.
+      4. Normalise to the target RMS contrast.
+      5. Optionally Lanczos-resize to output_px x output_px.
+      6. Save the result.
+
+    The resize (step 5) always happens AFTER filtering so that the filter
+    operates at the full source resolution, avoiding Nyquist problems.
+
+    Output structure
+    ----------------
+      output_dir/
+        digit_0/
+          digit_0_0.50cpd.png
+          digit_0_1.00cpd.png
+          ...
+        digit_1/
+          ...
 
     Parameters
     ----------
-    input_dir        : Directory containing digit PNG/TIFF/BMP images.
-    output_dir       : Destination for output images.
-    f0_cpo           : Filter centre frequency (cycles per image width).
-    bw_octaves       : Filter FWHH bandwidth in octaves.
-    pixels_per_degree: Display pixels per degree of visual angle.
-    rms_contrast     : Desired RMS contrast of output images (0–1).
-    mean_lum         : Mean/background luminance on the 0–255 scale.
-    save_resized     : If True, save resized images for each SF condition.
-    save_plots       : If True, save per-digit diagnostic figures.
+    input_dir       : Directory containing digit images (PNG/TIFF/BMP/JPG).
+    output_dir      : Root destination for filtered outputs.
+    display_size_deg: Visual angle subtended by the image on screen (degrees).
+                      Used to compute f0_cpo = sf_cpd x display_size_deg.
+                      This should reflect the ACTUAL displayed visual angle,
+                      not the source image's angular size if they differ.
+    bw_octaves      : Filter FWHH bandwidth in octaves.
+    rms_contrast    : Desired RMS contrast of output images (0-1).
+    mean_lum        : Background mean luminance on the 0-255 scale.
+    output_px       : If given, Lanczos-resize each filtered image to this
+                      many pixels (square) AFTER filtering. Use this when
+                      your source images are larger than what you will display
+                      (e.g. 512 px source displayed at 256 px on screen).
+                      The filter is still computed for display_size_deg.
+    save_plots      : If True, save a per-digit strip figure.
     """
     input_path  = Path(input_dir)
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
-    # Find images
-    exts = ['*.png', '*.PNG']
-    image_files = []
-    for ext in exts:
-        image_files.extend(input_path.glob(ext))
-    image_files = sorted(set(image_files))
+    exts = ['*.png', '*.PNG', '*.tif', '*.tiff', '*.TIF', '*.TIFF',
+            '*.bmp', '*.BMP', '*.jpg', '*.jpeg', '*.JPG', '*.JPEG']
+    image_files = sorted(set(f for ext in exts for f in input_path.glob(ext)))
 
     if not image_files:
         print(f"[ERROR] No images found in '{input_dir}'.")
         sys.exit(1)
 
     print(f"Found {len(image_files)} image file(s) in '{input_dir}'.")
-    print(f"Filter: f0={f0_cpo} cpo,  BW={bw_octaves} oct (FWHH),  "
-          f"passband: {f0_cpo * 2**(-bw_octaves/2):.2f}–"
-          f"{f0_cpo * 2**(bw_octaves/2):.2f} cpo (±{bw_octaves} oct support)")
-    print(f"Display: {pixels_per_degree} ppd,  mean lum={mean_lum},  "
-          f"RMS contrast={rms_contrast}\n")
+    resize_note = f"   output: {output_px}x{output_px} px (filter-first)" if output_px else ""
+    print(f"Display size: {display_size_deg} deg   BW: {bw_octaves} oct   "
+          f"RMS contrast: {rms_contrast}   mean lum: {mean_lum}{resize_note}\n")
+    print(f"{'SF (cpd)':<12} {'f0 (cpo)':<12} {'Support (cpo)'}")
+    print(f"{'--------':<12} {'--------':<12} {'-------------'}")
+    for label, sf_cpd in SF_CONDITIONS:
+        f0 = f0_for_condition(sf_cpd, display_size_deg)
+        lo = f0 * 2 ** (-bw_octaves)
+        hi = f0 * 2 ** ( bw_octaves)
+        print(f"{sf_cpd:<12.2f} {f0:<12.3f} {lo:.3f} - {hi:.3f}")
+    print()
 
     for img_file in image_files:
         stem = img_file.stem
         print(f"Processing: {img_file.name}")
 
-        # 1. Load
         img_pil  = Image.open(img_file).convert('L')
         original = np.array(img_pil, dtype=np.float64)
-        print(f"  Size: {original.shape[1]} × {original.shape[0]} px")
+        H_px, W_px = original.shape
+        N_pad   = next_power_of_two(max(H_px, W_px))
+        nyquist = N_pad / 2
+        print(f"  Size: {W_px} x {H_px} px   "
+              f"(FFT pad: {N_pad}, Nyquist: {nyquist:.0f} cpo)")
 
-        # 2. Filter
-        filtered = apply_bandpass_filter(original, f0_cpo, bw_octaves)
+        sf_dir = output_path / stem
+        sf_dir.mkdir(exist_ok=True)
 
-        # 3. Normalise → 8-bit display image
-        display  = to_display_image(filtered, mean_lum, rms_contrast)
+        displays = []
 
-        # 4. Save native-resolution filtered image
-        out_native = output_path / f"{stem}_filtered.png"
-        Image.fromarray(display).save(out_native)
-        print(f"  Saved: {out_native.name}")
+        for label, sf_cpd in SF_CONDITIONS:
+            f0 = f0_for_condition(sf_cpd, display_size_deg)
+            support_hi = f0 * 2 ** bw_octaves
 
-        # 5. Resize to each SF condition
-        if save_resized:
-            sf_dir = output_path / stem
-            sf_dir.mkdir(exist_ok=True)
-            for label, size_deg, sf_cpd in SF_CONDITIONS:
-                tpx = size_deg_to_pixels(size_deg, pixels_per_degree)
-                resized = resize_image(display, tpx)
-                out_sf = sf_dir / f"{stem}_{label}.png"
-                Image.fromarray(resized).save(out_sf)
-            print(f"  Saved {len(SF_CONDITIONS)} resized images in '{sf_dir.name}/'")
+            if support_hi > nyquist:
+                print(f"  [WARN] {sf_cpd} cpd: filter support upper edge "
+                      f"({support_hi:.1f} cpo) exceeds Nyquist "
+                      f"({nyquist:.0f} cpo). Use a higher-resolution input.")
+            elif f0 > nyquist * 0.5:
+                print(f"  [NOTE] {sf_cpd} cpd: f0={f0:.1f} cpo is above "
+                      f"half-Nyquist; filter may be partially truncated.")
 
-        # 6. Diagnostic plot
+            filtered = apply_bandpass_filter(original, f0, bw_octaves)
+            display  = to_display_image(filtered, mean_lum, rms_contrast)
+
+            # Resize AFTER filtering to avoid Nyquist truncation
+            if output_px is not None:
+                pil_out = Image.fromarray(display).resize(
+                    (output_px, output_px), Image.LANCZOS)
+                display_out = np.array(pil_out)
+            else:
+                display_out = display
+
+            displays.append(display_out)
+
+            out_path = sf_dir / f"{stem}_{label}.png"
+            Image.fromarray(display_out).save(out_path)
+
+        print(f"  Saved {len(SF_CONDITIONS)} filtered images -> '{sf_dir.name}/'")
+
         if save_plots:
-            plot_path = str(output_path / f"{stem}_examples.png")
-            plot_filtered_examples(
-                original.astype(np.uint8), display, stem,
-                save_path=plot_path,
-                ppd=pixels_per_degree,
-            )
+            _save_strip(original, displays, stem,
+                        str(output_path / f"{stem}_strip.png"))
 
     print(f"\nDone. All outputs in: {output_dir}")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 7. Command-line interface
-# ─────────────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# 6. Command-line interface
+# ---------------------------------------------------------------------------
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description=(
             'Generate bandpass-filtered digit stimuli (Zheng et al. 2018).\n'
-            'Applies a raised cosine bandpass filter and optionally resizes\n'
-            'to each spatial-frequency condition.'
+            'Produces one image per digit per SF condition, all at the\n'
+            'original pixel resolution, by varying the filter centre\n'
+            'frequency rather than resizing.\n\n'
+            '  f0_cpo = sf_cpd x display_size_deg'
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument('input_dir',
-                   help='Directory containing digit images (PNG/TIFF/BMP).')
+                   help='Directory containing digit images (PNG/TIFF/BMP/JPG).')
     p.add_argument('output_dir',
-                   help='Directory for filtered output images.')
-    p.add_argument('--f0', type=float, default=3.0, metavar='CPO',
-                   help='Filter centre frequency in cycles per image width '
-                        '[default: 3.0]. Use 6.0 to match the paper\'s stated '
-                        'SF values (0.5 cpd at 12°, etc.) when digits fill '
-                        'the full image.')
+                   help='Root directory for filtered output images.')
+    p.add_argument('--display-size', type=float, default=3.0, metavar='DEG',
+                   help='Visual angle (degrees) subtended by the image on '
+                        'your monitor. Determines f0_cpo = sf_cpd x DEG '
+                        'for each SF condition. [default: 3.0]')
+    p.add_argument('--output-px', type=int, default=None, metavar='N',
+                   help='If given, Lanczos-resize each filtered image to '
+                        'N x N pixels AFTER filtering. Use this when your '
+                        'source images are larger than what you display '
+                        '(e.g. --output-px 256 for a 512 px source displayed '
+                        'at half size). The filter is always applied first '
+                        'at the full source resolution.')
     p.add_argument('--bw', type=float, default=1.0, metavar='OCT',
                    help='Filter full bandwidth at half-height in octaves '
                         '[default: 1.0].')
-    p.add_argument('--ppd', type=float, default=60.0, metavar='PPD',
-                   help='Display resolution in pixels per degree of visual '
-                        'angle [default: 60.0]. Affects resized output sizes.')
     p.add_argument('--contrast', type=float, default=0.20, metavar='C',
-                   help='Desired RMS contrast of output images, 0–1 '
+                   help='Desired RMS contrast of output images, 0-1 '
                         '[default: 0.20].')
     p.add_argument('--mean-lum', type=float, default=128.0, metavar='LUM',
-                   help='Background mean luminance, 0–255 [default: 128.0].')
-    p.add_argument('--no-resize', action='store_true',
-                   help='Skip per-condition resized outputs.')
+                   help='Background mean luminance, 0-255 [default: 128.0].')
     p.add_argument('--plot', action='store_true',
-                   help='Save diagnostic figures for each digit.')
-    p.add_argument('--plot-filter', action='store_true',
-                   help='Save a filter profile figure and exit.')
+                   help='Save a strip figure for each digit.')
+    p.add_argument('--plot-filters', action='store_true',
+                   help='Save an overlay of all six filter profiles and exit.')
     return p
 
 
@@ -496,26 +479,25 @@ def main():
     parser = build_parser()
     args   = parser.parse_args()
 
-    if args.plot_filter:
-        plot_filter_profile(
-            f0_cpo=args.f0,
-            bw_octaves=args.bw,
-            save_path=str(Path(args.output_dir) / 'filter_profile.png')
-            if Path(args.output_dir).exists()
-            else 'filter_profile.png',
+    if args.plot_filters:
+        out = Path(args.output_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        plot_all_filters(
+            display_size_deg = args.display_size,
+            bw_octaves       = args.bw,
+            save_path        = str(out / 'filter_profiles.png'),
         )
         return
 
     process_digits(
-        input_dir         = args.input_dir,
-        output_dir        = args.output_dir,
-        f0_cpo            = args.f0,
-        bw_octaves        = args.bw,
-        pixels_per_degree = args.ppd,
-        rms_contrast      = args.contrast,
-        mean_lum          = args.mean_lum,
-        save_resized      = not args.no_resize,
-        save_plots        = args.plot,
+        input_dir        = args.input_dir,
+        output_dir       = args.output_dir,
+        display_size_deg = args.display_size,
+        bw_octaves       = args.bw,
+        rms_contrast     = args.contrast,
+        mean_lum         = args.mean_lum,
+        output_px        = args.output_px,
+        save_plots       = args.plot,
     )
 
 

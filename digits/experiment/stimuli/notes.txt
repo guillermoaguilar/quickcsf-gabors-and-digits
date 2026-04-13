@@ -1,0 +1,12 @@
+# Lab TM UChile
+
+Our PPD is 51
+Input images are 512 px, but will be rescaled to be 256 px
+
+256 px is 5 degrees stimulus with this PPD.
+
+Call generate_stimuli.py as:
+
+python generate_stimuli.py --display-size=4 --output-px=256 original/padded filtered
+
+

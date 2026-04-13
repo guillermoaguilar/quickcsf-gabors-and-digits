@@ -4,17 +4,18 @@ import matplotlib.pyplot as plt
 
 
 # Defaults
-PPD = 62      # pixels per degree.
+PPD = 62      # pixels per degree
+IMSIZE = 512 # pixels
 
-INTENSITY_BACKGROUND = 0.5
+VIS_SIZE = IMSIZE/PPD  #pixels * degree/pix = degree
 
 SF_CONDITIONS = {
-    0.5: "12deg_0.50cpd",
-    1.0: "06deg_1.00cpd",
-    2.0: "03deg_2.00cpd",
-    4.0: "1.5deg_4.00cpd",
-    8.0: "0.75deg_8.00cpd",
-    15.80: "0.38deg_15.8cpd",
+    0.5: "0.50cpd",
+    1.0: "1.00cpd",
+    2.0: "2.00cpd",
+    4.0: "4.00cpd",
+    8.0: "8.00cpd",
+    15.80: "15.80cpd",
     }
 
 
@@ -36,22 +37,22 @@ def load_digit(
     rms = im.std()
     m = im.mean()
     if debug:
-        print(f"mean original: {m}")
-        print(f"RMS contrast original: {rms}")
+        print(f"mean original: {m.round(4)}")
+        print(f"RMS contrast original: {rms.round(4)}")
     
     k = contrast / rms # ajusting factor
     scaled_im = m + k * (im - m)
     
     if debug:
-        print(f"mean adjusted: {scaled_im.mean()}")
-        print(f"RMS contrast afterwards: {scaled_im.std()}")
+        print(f"mean adjusted: {scaled_im.mean().round(4)}")
+        print(f"RMS contrast afterwards: {scaled_im.std().round(4)}")
     
     return scaled_im
 
 
 
 if __name__ == "__main__":
-    stim = load_digit(sf=2, contrast=0.05, digit=8, debug=True)
+    stim = load_digit(sf=1, contrast=0.05, digit=8, debug=True)
 
     plt.imshow(stim, cmap='gray', vmin=0, vmax=1)
     plt.show()
