@@ -16,7 +16,6 @@ import numpy as np
 from socket import gethostname
 from hrl import HRL
 
-#from helper_functions import make_sound
 import data_management
 import text_displays
 import experiment_logic
@@ -154,9 +153,6 @@ def experiment_main(ihrl):
 
 
 if __name__ == "__main__":
-    # Sound to be played at each interval
-    #f1, f2, f3, f4 = 500, 600, 800, 300
-    #pygame.mixer.pre_init(44100, -16, 1)
 
     # Create HRL interface object with parameters that depend on the setup
     ihrl = HRL(
@@ -164,15 +160,6 @@ if __name__ == "__main__":
         photometer=None,
         db=True,
     )
-    
-    # initializing sounds
-    #sound1 = pygame.sndarray.make_sound(make_sound(f1))
-    #sound2 = pygame.sndarray.make_sound(make_sound(f2))
-    #sound3 = pygame.sndarray.make_sound(make_sound(f3))
-    #sound4 = pygame.sndarray.make_sound(make_sound(f4))
-    #sounds = [sound1, sound2, sound3, sound4]
-
-    #ihrl.sounds = sounds
     
     experiment_main(ihrl)
 

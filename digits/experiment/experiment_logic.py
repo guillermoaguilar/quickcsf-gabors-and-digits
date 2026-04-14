@@ -4,7 +4,7 @@ import time
 import numpy as np
 import stimuli
 import text_displays
-
+import pygame
 
 def display_fixation_cross(ihrl, intensity=0, size=5):
     ihrl.graphics.flip(clr=True)
@@ -47,7 +47,6 @@ def run_trial(
     # draw and flip
     stim_texture.draw(pos=pos, sz=(stim_texture.wdth, stim_texture.hght))
     ihrl.graphics.flip(clr=True)  # flips the frame buffer to show everything
-    #ihrl.sounds[0].play(loops=0, maxtime=int(0.5*1000)) # stim time in ms
     time.sleep(0.3) 
     
     # limpia
@@ -57,21 +56,26 @@ def run_trial(
     ## fixation negra, espera respuesta
     display_fixation_cross(ihrl, intensity=0.0, size=10)
     
+    
     ### wait for response
-    btn, t1 = ihrl.inputs.readButton(btns=["Up", "Down", "Escape", "Space"])
+    pygame.event.get()
+    pygame.event.clear()
+    btn, t1 = ihrl.inputs.readButton(btns=None)
+    print(f"observer pressed {btn}")
     
-    ## TODO: see if response was indeed correct
-    
-    ## response --> correct or incorrect, binary
-    if btn=="Up":
-        response = 1
-        
-    elif btn=="Down":
-        response = 0
-
     # Raise SystemExit Exception
     if (btn == "Escape") or (btn == "Space"):
         sys.exit("Participant terminated experiment.")
+        
+    ## Processing response
+    digit_pressed = int(btn)
+    
+    ## response --> correct or incorrect, binary
+    if digit_pressed == digit:
+        response = 1  
+    else:
+        response = 0
+
 
     # after response, sleep for 1 second
     ihrl.graphics.flip(clr=True) 
@@ -80,7 +84,7 @@ def run_trial(
 
 
     # end trial
-    return {"response-btn": btn, "response": response, "resp.time": t1}
+    return {"response-digit": digit_pressed, "response": response, "resp.time": t1}
 
 
 def display_instructions(ihrl):
