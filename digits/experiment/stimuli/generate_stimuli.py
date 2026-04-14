@@ -79,22 +79,31 @@ import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
 
-
 # ---------------------------------------------------------------------------
 # SF conditions from Zheng et al. (2018) — target cpd values are fixed;
 # f0_cpo is computed at runtime from display_size_deg.
 # ---------------------------------------------------------------------------
 
-SF_CONDITIONS = [
-    # (label,       sf_cpd)
-    ("0.50cpd",      0.50),
-    ("1.00cpd",      1.00),
-    ("2.00cpd",      2.00),
-    ("4.00cpd",      4.00),
-    ("8.00cpd",      8.00),
-    ("15.80cpd",    15.80),
-]
+#SF_CONDITIONS = [
+#    # (label,       sf_cpd)
+#    ("0.50cpd",      0.50),
+#    ("1.00cpd",      1.00),
+#    ("2.00cpd",      2.00),
+#    ("4.00cpd",      4.00),
+#    ("8.00cpd",      8.00),
+#    ("16.00cpd",    16.00),
+#]
 
+PPD = 51
+
+frequency_vector = np.logspace(np.log10(.2),
+                               np.log10(int(PPD/2)),
+                               25, endpoint=True)
+    
+# (label,       sf_cpd)                        
+SF_CONDITIONS = [(f"{f:.2f}cpd", f.round(2)) for f in frequency_vector]
+
+        
 
 def f0_for_condition(sf_cpd: float, display_size_deg: float) -> float:
     """Return the filter centre frequency (cpo) for a target sf_cpd.
