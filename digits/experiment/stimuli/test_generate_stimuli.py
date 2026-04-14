@@ -210,7 +210,7 @@ def run_tests_and_plot(display_size_deg: float = 3.0,
 
     # 1. Synthetic digits
     print("=== Step 1: Render synthetic digits ===")
-    make_synthetic_digits(digits_dir, size_px=256)
+    #make_synthetic_digits(digits_dir, size_px=256)
 
     # 2. Unit tests  (validate at f0=3, a nice round value)
     print("=== Step 2: Filter unit tests ===")
@@ -231,7 +231,7 @@ def run_tests_and_plot(display_size_deg: float = 3.0,
     # 4. Power spectra for digit "0"
     print("\n=== Step 4: Power spectra ===")
     digit0 = np.array(
-        Image.open(digits_dir / 'digit_0.png').convert('L'), dtype=float)
+        Image.open(digits_dir / 'digit_5.png').convert('L'), dtype=float)
     freq_orig, ps_orig = radial_power_spectrum(digit0 - digit0.mean())
 
     spectra = []
@@ -281,7 +281,7 @@ def run_tests_and_plot(display_size_deg: float = 3.0,
         ax1.semilogy(freq_f, ps_f + 1e-3,
                      color=col, lw=1.5, label=f'{sf_cpd} cpd')
     ax1.set_xlabel('Spatial frequency (cpo)'); ax1.set_ylabel('Power (log)')
-    ax1.set_title('Radial power spectra — digit "0"')
+    ax1.set_title('Radial power spectra')
     ax1.set_xlim(0, min(f0_max * 2, N_plot / 2))
     ax1.legend(fontsize=7, ncol=2); ax1.grid(True, alpha=0.3)
 
@@ -344,4 +344,4 @@ def run_tests_and_plot(display_size_deg: float = 3.0,
 
 
 if __name__ == '__main__':
-    run_tests_and_plot(display_size_deg=3.0, bw=1.0, contrast=0.20)
+    run_tests_and_plot(display_size_deg=5.0, bw=1.0, contrast=0.20)
