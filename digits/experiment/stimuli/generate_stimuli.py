@@ -98,11 +98,12 @@ PPD = 51
 
 frequency_vector = np.logspace(np.log10(.2),
                                np.log10(int(PPD/2)),
-                               25, endpoint=True)
+                               25, endpoint=True).round(2)
     
 # (label,       sf_cpd)                        
-SF_CONDITIONS = [(f"{f:.2f}cpd", f.round(2)) for f in frequency_vector]
+SF_CONDITIONS = [(f"{f:.2f}cpd", f) for f in frequency_vector]
 
+print(SF_CONDITIONS)  
         
 
 def f0_for_condition(sf_cpd: float, display_size_deg: float) -> float:

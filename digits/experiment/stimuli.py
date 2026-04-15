@@ -4,20 +4,32 @@ import matplotlib.pyplot as plt
 
 
 # Defaults
-PPD = 62      # pixels per degree
-IMSIZE = 512 # pixels
+PPD = 51      # pixels per degree
+IMSIZE = 512  # pixels
 
 VIS_SIZE = IMSIZE/PPD  #pixels * degree/pix = degree
 
-SF_CONDITIONS = {
-    0.5: "0.50cpd",
-    1.0: "1.00cpd",
-    2.0: "2.00cpd",
-    4.0: "4.00cpd",
-    8.0: "8.00cpd",
-    15.80: "15.80cpd",
-    }
+########
+#SF_CONDITIONS = {
+#    0.5: "0.50cpd",
+#    1.0: "1.00cpd",
+#    2.0: "2.00cpd",
+#    4.0: "4.00cpd",
+#    8.0: "8.00cpd",
+#    15.80: "15.80cpd",
+#    }
+#
+# FOLDER = "filtered"   
 
+########
+frequency_vector = np.logspace(np.log10(.2),
+                               np.log10(int(PPD/2)),
+                               25, endpoint=True).round(2)
+# (sf_cpd, label)                        
+SF_CONDITIONS = {f.round(2): f"{f:.2f}cpd" for f in frequency_vector}
+FOLDER = "filtered_more"      
+
+print(SF_CONDITIONS)  
 
 # %% Standard Gabor
 def load_digit(
@@ -30,7 +42,7 @@ def load_digit(
     label = SF_CONDITIONS[sf]
 
     # load from file
-    im = Image.open(f"stimuli/filtered/{digit}/{digit}_{label}.png")
+    im = Image.open(f"stimuli/{FOLDER}/{digit}/{digit}_{label}.png")
     im = np.array(im)/255
     
     # adjust contrast
@@ -52,6 +64,7 @@ def load_digit(
 
 
 if __name__ == "__main__":
+    #stim = load_digit(sf=1, contrast=0.05, digit=8, debug=True)
     stim = load_digit(sf=1, contrast=0.05, digit=8, debug=True)
 
     plt.imshow(stim, cmap='gray', vmin=0, vmax=1)
