@@ -42,7 +42,9 @@ def display_stim(ihrl, stim_image, stim_name):
     stim_texture.draw(pos=pos, sz=(stim_texture.wdth, stim_texture.hght))
     
     # Display name of stimulus
-    text_arr = texts.text(text=stim_name,
+    label = f"{stim_name} - RMS contrast {CONTRAST_FIXED}"
+    
+    text_arr = texts.text(text=label,
                           intensity_text=0.0,
                           intensity_background=0.5,    
                           ppd=PPD,

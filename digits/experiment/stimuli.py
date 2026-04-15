@@ -2,6 +2,7 @@ import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
 
+from stimupy.components.gaussians import gaussian
 
 # Defaults
 PPD = 51      # pixels per degree
@@ -45,6 +46,15 @@ def load_digit(
     im = Image.open(f"stimuli/{FOLDER}/{digit}/{digit}_{label}.png")
     im = np.array(im)/255
     
+    # applies Gaussian envelope to avoid edge artifacts at low s.f.
+    gaussian_window = gaussian(visual_size=VIS_SIZE,
+    				           ppd=PPD,
+                               sigma=2.5,
+                               origin="center",
+                              )["img"][::2, ::2]  # half the size
+    
+    #im = (im - im.mean()) * gaussian_window + im.mean()
+    
     # adjust contrast
     rms = im.std()
     m = im.mean()
@@ -65,7 +75,7 @@ def load_digit(
 
 if __name__ == "__main__":
     #stim = load_digit(sf=1, contrast=0.05, digit=8, debug=True)
-    stim = load_digit(sf=1, contrast=0.05, digit=8, debug=True)
+    stim = load_digit(sf=0.82, contrast=0.15, digit=2, debug=True)
 
     plt.imshow(stim, cmap='gray', vmin=0, vmax=1)
     plt.show()
