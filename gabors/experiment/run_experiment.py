@@ -32,13 +32,27 @@ orientations = [0, 90]
 # Possible phases
 phases = [0, pi/4, pi/2, 3*pi/4]
 
-# vector of possible frequencies 
-frequency_vector = np.logspace(np.log10(.2),
+######## first design - same as in previous thesis, maximum possible
+#frequency_vector = np.logspace(np.log10(.2),
+#                               np.log10(int(PPD/2)),
+#                               25, endpoint=True)
+                               
+######## second design - lower bound adjusted, minimum that is distinguishable  
+frequency_vector = np.logspace(np.log10(1.0),
                                np.log10(int(PPD/2)),
-                               25, endpoint=True)
-      
+                               25, endpoint=True).round(2)
+   
+# bounds in RMS contrast unit                 
+contrast_vector = np.logspace(np.log10(.001),
+                              np.log10(0.15),
+                              25, endpoint=True)
+
+
 # Initialize quickCSF object                                         
-qcsf = qCSF(frequency_vector=frequency_vector)
+qcsf = qCSF(frequency_vector=frequency_vector,
+            contrast_vector=contrast_vector)
+
+
 
 # psychometric function parameters
 # fixing upper and lower asymptotes to 4% 

@@ -3,6 +3,7 @@ from PIL import Image
 import matplotlib.pyplot as plt
 
 from stimupy.components.gaussians import gaussian
+from stimupy import utils
 
 # Defaults
 PPD = 51      # pixels per degree
@@ -83,7 +84,13 @@ def load_digit(
 
 if __name__ == "__main__":
     #stim = load_digit(sf=1, contrast=0.05, digit=8, debug=True)
-    stim = load_digit(sf=0.82, contrast=0.15, digit=2, debug=True)
+    stim = load_digit(sf=1.5, contrast=0.15, digit=2, debug=True)
 
-    plt.imshow(stim, cmap='gray', vmin=0, vmax=1)
-    plt.show()
+    #plt.imshow(stim, cmap='gray', vmin=0, vmax=1)
+    #plt.show()
+    s = {"img": stim}
+    
+    s['visual_size'] = (5, 5)
+    s['ppd'] = (PPD, PPD)
+    
+    utils.plot_stim(s)

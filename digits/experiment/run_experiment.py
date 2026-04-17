@@ -46,7 +46,7 @@ frequency_vector = np.logspace(np.log10(1.0),
 
 
 contrast_vector = np.logspace(np.log10(.001),
-                              np.log10(.2),
+                              np.log10(.15),
                               25, endpoint=True)
 
 
