@@ -96,10 +96,16 @@ from PIL import Image
 
 PPD = 51
 
-frequency_vector = np.logspace(np.log10(.2),
+# first design - copy range from gabors
+#frequency_vector = np.logspace(np.log10(.2),
+#                               np.log10(int(PPD/2)),
+#                               25, endpoint=True).round(2)
+
+# second design - lower bound adjusted, minimum that is distinguishable  
+frequency_vector = np.logspace(np.log10(1.0),
                                np.log10(int(PPD/2)),
                                25, endpoint=True).round(2)
-    
+
 # (label,       sf_cpd)                        
 SF_CONDITIONS = [(f"{f:.2f}cpd", f) for f in frequency_vector]
 

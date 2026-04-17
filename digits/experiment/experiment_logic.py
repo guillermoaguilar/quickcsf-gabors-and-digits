@@ -58,10 +58,15 @@ def run_trial(
     
     
     ### wait for response
-    pygame.event.get()
-    pygame.event.clear()
-    btn, t1 = ihrl.inputs.readButton(btns=None)
-    print(f"observer pressed {btn}")
+    while True:
+        pygame.event.get()
+        pygame.event.clear()
+        btn, t1 = ihrl.inputs.readButton(btns=None)
+        print(f"observer pressed {btn}")
+        
+        # ignore these responses
+        if not (btn in ['Up', 'Down', 'Left', 'Right']):
+            break
     
     # Raise SystemExit Exception
     if (btn == "Escape") or (btn == "Space"):
@@ -69,6 +74,7 @@ def run_trial(
         
     ## Processing response
     digit_pressed = int(btn)
+
     
     ## response --> correct or incorrect, binary
     if digit_pressed == digit:

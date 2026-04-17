@@ -33,14 +33,22 @@ digits = [0, 2, 3, 4, 5, 6, 7, 8, 9]
 # vector of possible frequencies - Zheng et al. 2018 and 2019
 #frequency_vector = np.array([0.5, 1, 2, 4, 8, 15.8])
 
-# extended vector of 25 different frequencies as in Gabors
-frequency_vector = np.logspace(np.log10(.2),
+
+######## first design -  extended vector of 25 different frequencies as in Gabors
+#frequency_vector = np.logspace(np.log10(.2),
+#                               np.log10(int(PPD/2)),
+#                               25, endpoint=True).round(2)
+
+######## second design - lower bound adjusted, minimum that is distinguishable  
+frequency_vector = np.logspace(np.log10(1.0),
                                np.log10(int(PPD/2)),
-                               25, endpoint=True)
+                               25, endpoint=True).round(2)
+
 
 contrast_vector = np.logspace(np.log10(.001),
                               np.log10(.2),
                               25, endpoint=True)
+
 
 # Initialize quickCSF object                                         
 qcsf = qCSF(frequency_vector=frequency_vector,

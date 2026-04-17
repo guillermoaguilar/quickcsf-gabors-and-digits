@@ -22,13 +22,21 @@ VIS_SIZE = IMSIZE/PPD  #pixels * degree/pix = degree
 #
 # FOLDER = "filtered"   
 
-########
-frequency_vector = np.logspace(np.log10(.2),
+######## first design - copy range from gabors
+#frequency_vector = np.logspace(np.log10(.2),
+#                               np.log10(int(PPD/2)),
+#                               25, endpoint=True).round(2)
+#FOLDER = "filtered-more-sf"      
+
+######## second design - lower bound adjusted, minimum that is distinguishable  
+frequency_vector = np.logspace(np.log10(1.0),
                                np.log10(int(PPD/2)),
                                25, endpoint=True).round(2)
+FOLDER = "filtered"  
+
+#######################################################################
 # (sf_cpd, label)                        
-SF_CONDITIONS = {f.round(2): f"{f:.2f}cpd" for f in frequency_vector}
-FOLDER = "filtered_more"      
+SF_CONDITIONS = {f: f"{f:.2f}cpd" for f in frequency_vector}
 
 print(SF_CONDITIONS)  
 
